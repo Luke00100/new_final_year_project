@@ -6,13 +6,13 @@ export default function DocumentsPage() {
         <h2 className="text-xl font-bold mb-8">AI Knowledge Assistant</h2>
         <nav className="space-y-2">
           <a href="/dashboard" className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
-            <span>📊</span> Dashboard
+             Dashboard
           </a>
           <a href="/chat" className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
-            <span>💬</span> Chat
+             Chat
           </a>
           <a href="/documents" className="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-800 text-white">
-            <span>📄</span> Documents
+            Documents
           </a>
         </nav>
       </aside>
