@@ -12,6 +12,10 @@ Next.js frontend for the AI Knowledge Assistant — an intelligent customer supp
 ```bash
 npm install
 npm run dev
+
+cd backend
+.\venv\Scripts\activate
+uvicorn main:app --reload
 ```
 
 Open [http://localhost:3000](http://localhost:3000)
