@@ -1,55 +1,62 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Handle OAuth callback
-  useEffect(() => {
-    const token = searchParams.get("token");
-    const userParam = searchParams.get("user");
-    const errorParam = searchParams.get("error");
+  const validateForm = () => {
+    if (!name.trim()) {
+      setError("Name is required");
+      return false;
+    }
+    if (!email.trim()) {
+      setError("Email is required");
+      return false;
+    }
+    if (!email.includes("@")) {
+      setError("Please enter a valid email address");
+      return false;
+    }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters");
+      return false;
+    }
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      return false;
+    }
+    return true;
+  };
 
-    if (errorParam) {
-      setError(decodeURIComponent(errorParam));
+  const handleRegister = async () => {
+    setError("");
+    
+    if (!validateForm()) {
       return;
     }
 
-    if (token && userParam) {
-      try {
-        const user = JSON.parse(decodeURIComponent(userParam));
-        localStorage.setItem("token", token);
-        localStorage.setItem("user", JSON.stringify(user));
-        router.push("/dashboard");
-      } catch (e) {
-        setError("Failed to process login");
-      }
-    }
-  }, [searchParams, router]);
-
-  const handleLogin = async () => {
-    setError("");
     setLoading(true);
 
     try {
-      const res = await fetch("http://localhost:8000/api/auth/login", {
+      const res = await fetch("http://localhost:8000/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ name, email, password }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.detail || "Invalid email or password");
+        setError(data.detail || "Registration failed");
         setLoading(false);
         return;
       }
@@ -74,19 +81,33 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-600 rounded-2xl mb-4 shadow-lg shadow-indigo-500/30">
             <span className="text-3xl">🧠</span>
           </div>
-          <h1 className="text-3xl font-bold text-white">AI Knowledge Assistant</h1>
-          <p className="text-slate-400 mt-2">Sign in to access your dashboard</p>
+          <h1 className="text-3xl font-bold text-white">Create Account</h1>
+          <p className="text-slate-400 mt-2">Sign up to get started</p>
         </div>
 
         {/* Card */}
         <div className="bg-white rounded-2xl shadow-2xl p-8">
-          <div className="space-y-5">
+          <div className="space-y-4">
             {/* Error Message */}
             {error && (
               <div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-xl border border-red-100">
                 {error}
               </div>
             )}
+
+            {/* Name */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Full Name
+              </label>
+              <input
+                type="text"
+                placeholder="John Smith"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all bg-gray-50 hover:bg-white"
+              />
+            </div>
 
             {/* Email */}
             <div>
@@ -98,28 +119,21 @@ export default function LoginPage() {
                 placeholder="you@company.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleLogin()}
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all bg-gray-50 hover:bg-white"
               />
             </div>
 
             {/* Password */}
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-sm font-medium text-gray-700">
-                  Password
-                </label>
-                <a href="#" className="text-sm text-indigo-600 hover:text-indigo-500 transition-colors">
-                  Forgot password?
-                </a>
-              </div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Password
+              </label>
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleLogin()}
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all bg-gray-50 hover:bg-white pr-12"
                 />
                 <button
@@ -130,27 +144,31 @@ export default function LoginPage() {
                   {showPassword ? "Hide" : "Show"}
                 </button>
               </div>
+              <p className="text-xs text-gray-400 mt-1">Must be at least 8 characters</p>
             </div>
 
-            {/* Remember me */}
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="remember"
-                className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-              />
-              <label htmlFor="remember" className="text-sm text-gray-600">
-                Remember me for 30 days
+            {/* Confirm Password */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Confirm Password
               </label>
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleRegister()}
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all bg-gray-50 hover:bg-white"
+              />
             </div>
 
-            {/* Sign in button */}
+            {/* Sign up button */}
             <button
-              onClick={handleLogin}
+              onClick={handleRegister}
               disabled={loading}
-              className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-all shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-all shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed mt-2"
             >
-              {loading ? "Signing in..." : "Sign in"}
+              {loading ? "Creating account..." : "Create account"}
             </button>
 
             {/* Divider */}
@@ -178,11 +196,11 @@ export default function LoginPage() {
             </a>
           </div>
 
-          {/* Sign up link */}
+          {/* Sign in link */}
           <p className="text-center text-sm text-gray-500 mt-6">
-            Don&apos;t have an account?{" "}
-            <a href="/register" className="text-indigo-600 hover:text-indigo-500 font-medium transition-colors">
-              Create one
+            Already have an account?{" "}
+            <a href="/login" className="text-indigo-600 hover:text-indigo-500 font-medium transition-colors">
+              Sign in
             </a>
           </p>
         </div>
