@@ -55,3 +55,5 @@ class SourceChunk(BaseModel):
 class ChatResponse(BaseModel):
     answer: str
     sources: List[SourceChunk]
+    category: Optional[str] = None
+    response_time_ms: Optional[int] = None

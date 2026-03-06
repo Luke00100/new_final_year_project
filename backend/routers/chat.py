@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 from schemas import ChatRequest, ChatResponse
 from services.chat_service import chat_with_rag
 from auth import verify_token
+from database import get_db
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 router = APIRouter(prefix="/api/chat", tags=["Chat"])
@@ -12,6 +14,7 @@ security = HTTPBearer()
 def send_message(
     request: ChatRequest,
     credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
 ):
     # Verify user is authenticated
     payload = verify_token(credentials.credentials)
@@ -22,7 +25,8 @@ def send_message(
         )
 
     try:
-        result = chat_with_rag(request.message)
+        user_id = payload.get("user_id")
+        result = chat_with_rag(request.message, user_id=user_id, db_session=db)
         return ChatResponse(**result)
     except Exception as e:
         raise HTTPException(

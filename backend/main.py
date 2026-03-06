@@ -4,6 +4,7 @@ from database import engine, Base
 from routers import users
 from routers import documents
 from routers import chat
+from routers import analytics
 
 # Create all database tables
 Base.metadata.create_all(bind=engine)
@@ -23,6 +24,7 @@ app.add_middleware(
 app.include_router(users.router)
 app.include_router(documents.router)
 app.include_router(chat.router)
+app.include_router(analytics.router)
 
 
 @app.get("/")

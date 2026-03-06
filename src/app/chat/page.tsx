@@ -13,21 +13,58 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   sources?: Source[];
+  category?: string;
+  responseTime?: number;
 }
+
+const categoryColors: Record<string, string> = {
+  Support: "bg-blue-100 text-blue-700 border-blue-200",
+  HR: "bg-purple-100 text-purple-700 border-purple-200",
+  Marketing: "bg-orange-100 text-orange-700 border-orange-200",
+  IT: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  Finance: "bg-red-100 text-red-700 border-red-200",
+};
+
+const STORAGE_KEY = "chat_messages";
 
 export default function ChatPage() {
   const router = useRouter();
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-      content:
-        "Hello! I'm your AI Knowledge Assistant. Ask me anything about your company documents.",
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Load messages from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setMessages(parsed);
+          return;
+        }
+      } catch {
+        // Invalid JSON, ignore
+      }
+    }
+    // Default welcome message
+    setMessages([
+      {
+        role: "assistant",
+        content:
+          "Hello! I'm your AI Knowledge Assistant. Ask me anything about your company documents.",
+      },
+    ]);
+  }, []);
+
+  // Save messages to localStorage whenever they change
+  useEffect(() => {
+    if (messages.length > 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+    }
+  }, [messages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -36,6 +73,17 @@ export default function ChatPage() {
   function getToken(): string | null {
     if (typeof window === "undefined") return null;
     return localStorage.getItem("token");
+  }
+
+  function clearChat() {
+    setMessages([
+      {
+        role: "assistant",
+        content:
+          "Hello! I'm your AI Knowledge Assistant. Ask me anything about your company documents.",
+      },
+    ]);
+    localStorage.removeItem(STORAGE_KEY);
   }
 
   async function sendMessage() {
@@ -80,11 +128,12 @@ export default function ChatPage() {
           role: "assistant",
           content: data.answer,
           sources: data.sources ?? [],
+          category: data.category,
+          responseTime: data.response_time_ms,
         },
       ]);
     } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "Unknown error";
+      const message = err instanceof Error ? err.message : "Unknown error";
       setMessages((prev) => [
         ...prev,
         {
@@ -125,19 +174,19 @@ export default function ChatPage() {
             href="/dashboard"
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
           >
-            Dashboard
+            <span>📊</span> Dashboard
           </a>
           <a
             href="/chat"
             className="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-800 text-white"
           >
-            Chat
+            <span>💬</span> Chat
           </a>
           <a
             href="/documents"
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
           >
-            Documents
+            <span>📄</span> Documents
           </a>
         </nav>
       </aside>
@@ -145,11 +194,19 @@ export default function ChatPage() {
       {/* Main Content */}
       <main className="ml-64 h-screen flex flex-col">
         {/* Header */}
-        <div className="p-6 border-b border-gray-200 bg-white">
-          <h1 className="text-xl font-bold text-gray-900">Knowledge Chat</h1>
-          <p className="text-sm text-gray-600">
-            Ask questions about your company documents
-          </p>
+        <div className="p-6 border-b border-gray-200 bg-white flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Knowledge Chat</h1>
+            <p className="text-sm text-gray-600">
+              Ask questions about your company documents
+            </p>
+          </div>
+          <button
+            onClick={clearChat}
+            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            Clear Chat
+          </button>
         </div>
 
         {/* Messages */}
@@ -168,11 +225,29 @@ export default function ChatPage() {
                     : "bg-white border border-gray-100 text-gray-900"
                 }`}
               >
+                {/* Category tag for assistant messages */}
+                {msg.role === "assistant" && msg.category && (
+                  <div className="flex items-center gap-2 mb-2">
+                    <span
+                      className={`px-2 py-0.5 text-xs rounded-full border ${
+                        categoryColors[msg.category] || "bg-gray-100 text-gray-700"
+                      }`}
+                    >
+                      {msg.category}
+                    </span>
+                    {msg.responseTime && (
+                      <span className="text-xs text-gray-400">
+                        {(msg.responseTime / 1000).toFixed(1)}s
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
 
-                {/* Source pills */}
+                {/* Source pills - only show if there are actually sources */}
                 {msg.sources && msg.sources.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-3 pt-3 border-t border-indigo-100">
+                  <div className="flex flex-wrap gap-1 mt-3 pt-3 border-t border-gray-100">
                     <span className="text-xs text-gray-400 w-full mb-1">
                       Sources:
                     </span>
@@ -180,7 +255,7 @@ export default function ChatPage() {
                       <span
                         key={j}
                         className="px-2 py-0.5 text-xs rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100"
-                        title={src.content}
+                        title={`Relevance: ${((1 - src.distance) * 100).toFixed(0)}%`}
                       >
                         📄 {src.filename}
                       </span>

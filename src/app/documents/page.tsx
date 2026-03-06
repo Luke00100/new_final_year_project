@@ -35,6 +35,7 @@ export default function DocumentsPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string>("");
   const [uploadStatus, setUploadStatus] = useState<{
     type: "success" | "error";
     message: string;
@@ -71,25 +72,42 @@ export default function DocumentsPage() {
     fetchDocuments();
   }, [fetchDocuments]);
 
-  async function uploadFile(file: File) {
+  async function uploadFiles(fileList: FileList | File[]) {
     const token = getToken();
     if (!token) { router.push("/login"); return; }
 
-    const ext = file.name.split(".").pop()?.toLowerCase();
-    if (!["pdf", "docx", "txt"].includes(ext ?? "")) {
-      setUploadStatus({ type: "error", message: "Unsupported file type. Use PDF, DOCX, or TXT." });
-      return;
+    const files = Array.from(fileList);
+    
+    // Validate all files first
+    const validFiles: File[] = [];
+    const errors: string[] = [];
+    
+    for (const file of files) {
+      const ext = file.name.split(".").pop()?.toLowerCase();
+      if (!["pdf", "docx", "txt"].includes(ext ?? "")) {
+        errors.push(`${file.name}: Unsupported file type`);
+        continue;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        errors.push(`${file.name}: File exceeds 10MB limit`);
+        continue;
+      }
+      validFiles.push(file);
     }
-    if (file.size > 10 * 1024 * 1024) {
-      setUploadStatus({ type: "error", message: "File exceeds the 10MB limit." });
+
+    if (validFiles.length === 0) {
+      setUploadStatus({ type: "error", message: errors.join("; ") });
       return;
     }
 
     setUploading(true);
     setUploadStatus(null);
+    setUploadProgress(`Uploading ${validFiles.length} file${validFiles.length > 1 ? "s" : ""}...`);
 
     const formData = new FormData();
-    formData.append("file", file);
+    validFiles.forEach(file => {
+      formData.append("files", file);
+    });
 
     try {
       const res = await fetch(`${API}/upload`, {
@@ -107,15 +125,22 @@ export default function DocumentsPage() {
         return;
       }
 
-      setUploadStatus({
-        type: "success",
-        message: `"${data.filename}" uploaded successfully — ${data.chunk_count} chunks indexed.`,
-      });
+      // data is now an array of uploaded documents
+      const uploadedDocs = Array.isArray(data) ? data : [data];
+      const totalChunks = uploadedDocs.reduce((sum, doc) => sum + doc.chunk_count, 0);
+      
+      let message = `${uploadedDocs.length} file${uploadedDocs.length > 1 ? "s" : ""} uploaded successfully — ${totalChunks} chunks indexed.`;
+      if (errors.length > 0) {
+        message += ` (${errors.length} skipped: ${errors.join("; ")})`;
+      }
+      
+      setUploadStatus({ type: "success", message });
       await fetchDocuments();
     } catch {
       setUploadStatus({ type: "error", message: "Could not reach the backend. Is it running?" });
     } finally {
       setUploading(false);
+      setUploadProgress("");
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }
@@ -145,8 +170,8 @@ export default function DocumentsPage() {
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     setDragOver(false);
-    const file = e.dataTransfer.files[0];
-    if (file) uploadFile(file);
+    const files = e.dataTransfer.files;
+    if (files.length > 0) uploadFiles(files);
   }
 
   return (
@@ -156,13 +181,13 @@ export default function DocumentsPage() {
         <h2 className="text-xl font-bold mb-8">AI Knowledge Assistant</h2>
         <nav className="space-y-2">
           <a href="/dashboard" className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
-            Dashboard
+            <span>📊</span> Dashboard
           </a>
           <a href="/chat" className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
-            Chat
+            <span>💬</span> Chat
           </a>
           <a href="/documents" className="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-800 text-white">
-            Documents
+            <span>📄</span> Documents
           </a>
         </nav>
       </aside>
@@ -179,19 +204,20 @@ export default function DocumentsPage() {
             disabled={uploading}
             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors font-medium"
           >
-            {uploading ? "Uploading…" : "+ Upload Document"}
+            {uploading ? "Uploading…" : "+ Upload Documents"}
           </button>
         </div>
 
-        {/* Hidden file input */}
+        {/* Hidden file input - now with multiple */}
         <input
           ref={fileInputRef}
           type="file"
           accept=".pdf,.docx,.txt"
+          multiple
           className="hidden"
           onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) uploadFile(file);
+            const files = e.target.files;
+            if (files && files.length > 0) uploadFiles(files);
           }}
         />
 
@@ -210,16 +236,16 @@ export default function DocumentsPage() {
           {uploading ? (
             <>
               <p className="text-4xl mb-3">⏳</p>
-              <p className="text-gray-700 font-medium">Uploading and indexing…</p>
+              <p className="text-gray-700 font-medium">{uploadProgress || "Uploading and indexing…"}</p>
               <p className="text-sm text-gray-400 mt-1">Please wait</p>
             </>
           ) : (
             <>
               <p className="text-4xl mb-3">📁</p>
               <p className="text-gray-700 font-medium">
-                Drag and drop a file here, or <span className="text-indigo-600 underline">browse</span>
+                Drag and drop files here, or <span className="text-indigo-600 underline">browse</span>
               </p>
-              <p className="text-sm text-gray-500 mt-1">Supports PDF, DOCX, and TXT — max 10MB</p>
+              <p className="text-sm text-gray-500 mt-1">Supports PDF, DOCX, and TXT — max 10MB each — multiple files allowed</p>
             </>
           )}
         </div>

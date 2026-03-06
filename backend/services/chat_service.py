@@ -1,7 +1,9 @@
 import os
+import time
 from openai import OpenAI
 from dotenv import load_dotenv
 from services.rag_service import search_similar
+from services.classification_service import classify_query
 
 load_dotenv()
 
@@ -17,8 +19,13 @@ Rules:
 - If no relevant documents are found, let the user know they should upload relevant documents first."""
 
 
-def chat_with_rag(user_message: str) -> dict:
+def chat_with_rag(user_message: str, user_id: int = None, db_session=None) -> dict:
     """Process a user message through the RAG pipeline and return an LLM response."""
+    
+    start_time = time.time()
+    
+    # Classify the query
+    category = classify_query(user_message)
 
     # Search for relevant chunks
     relevant_chunks = search_similar(user_message, n_results=5)
@@ -55,17 +62,49 @@ Please answer the question based on the context provided above."""
     )
 
     answer = response.choices[0].message.content
+    
+    # Calculate response time
+    response_time_ms = int((time.time() - start_time) * 1000)
 
-    # Format sources
+    # Format sources - deduplicate by filename, keeping the best (lowest distance) match
     sources = []
+    seen_files = set()
     for chunk in relevant_chunks:
-        sources.append({
-            "content": chunk["content"][:200] + "..." if len(chunk["content"]) > 200 else chunk["content"],
-            "filename": chunk["metadata"].get("filename", "Unknown"),
-            "distance": chunk["distance"]
-        })
+        filename = chunk["metadata"].get("filename", "Unknown")
+        # Only add each file once (first occurrence has lowest distance since results are sorted)
+        if filename not in seen_files:
+            seen_files.add(filename)
+            sources.append({
+                "content": chunk["content"][:200] + "..." if len(chunk["content"]) > 200 else chunk["content"],
+                "filename": filename,
+                "distance": chunk["distance"]
+            })
+
+    # Determine status based on sources found
+    if not relevant_chunks:
+        status = "Partial"
+    elif len(relevant_chunks) >= 3:
+        status = "Resolved"
+    else:
+        status = "Resolved"
+
+    # Log the query to database if session provided
+    if db_session:
+        from models import QueryLog
+        query_log = QueryLog(
+            user_id=user_id,
+            query_text=user_message,
+            category=category,
+            response_time_ms=response_time_ms,
+            status=status,
+            sources_used=len(sources)
+        )
+        db_session.add(query_log)
+        db_session.commit()
 
     return {
         "answer": answer,
-        "sources": sources
+        "sources": sources,
+        "category": category,
+        "response_time_ms": response_time_ms
     }

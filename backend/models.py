@@ -24,3 +24,17 @@ class Document(Base):
     chunk_count = Column(Integer, default=0)
     uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class QueryLog(Base):
+    """Stores each chat query with its classification for analytics."""
+    __tablename__ = "query_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    query_text = Column(Text, nullable=False)
+    category = Column(String, nullable=False)  # Support, HR, Marketing, IT, Finance
+    response_time_ms = Column(Integer, nullable=True)  # Response time in milliseconds
+    status = Column(String, default="Resolved")  # Resolved, Partial, Escalated
+    sources_used = Column(Integer, default=0)  # Number of source documents used
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
