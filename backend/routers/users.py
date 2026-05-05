@@ -205,5 +205,7 @@ async def google_callback(code: str = None, error: str = None, db: Session = Dep
         )
         
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"Google OAuth error: {e}")
         return RedirectResponse(url=f"{FRONTEND_URL}/login?error=Authentication failed")
